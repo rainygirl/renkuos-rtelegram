@@ -442,7 +442,7 @@ void MessageView::ScrollTo(BPoint where)
 MainWindow::MainWindow()
 	:
 	BWindow(BRect(80, 80, 980, 700), "R Telegram", B_DOCUMENT_WINDOW,
-		B_AUTO_UPDATE_SIZE_LIMITS | B_QUIT_ON_WINDOW_CLOSE)
+		B_QUIT_ON_WINDOW_CLOSE)
 {
 	fChats = new BListView("chats");
 	fChats->SetSelectionMessage(new BMessage(kMsgChatSelected));
@@ -483,8 +483,11 @@ MainWindow::MainWindow()
 
 	TdService::Get().AddTarget(BMessenger(this));
 	RefreshChats();
-	// The layout would shrink the window to its preferred size, which for
-	// two empty lists is a postage stamp.
+	// Not B_AUTO_UPDATE_SIZE_LIMITS: that pins the window to what the layout
+	// reports, and the text field and labels report a fixed height, so the
+	// window could not be made taller. Only a floor, then any size at all.
+	SetSizeLimits(roundf(480 * Scale()), B_SIZE_UNLIMITED,
+		roundf(320 * Scale()), B_SIZE_UNLIMITED);
 	ResizeTo(roundf(900 * Scale()), roundf(620 * Scale()));
 	CenterOnScreen();
 }
