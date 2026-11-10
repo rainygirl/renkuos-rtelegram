@@ -11,6 +11,7 @@
 #include <TextControl.h>
 #include <TextView.h>
 
+#include <math.h>
 #include <stdlib.h>
 
 namespace {
@@ -21,7 +22,9 @@ enum {
 	kMsgNext = 'rtNx',
 };
 
-BTextView* HelpText(const char* text)
+// A read-only paragraph. `lines` is how many lines of the plain font it is
+// given room for: a BTextView in a layout asks for no height of its own.
+BTextView* HelpText(const char* text, int lines)
 {
 	BTextView* view = new BTextView("help");
 	view->SetText(text);
@@ -31,7 +34,10 @@ BTextView* HelpText(const char* text)
 	view->SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
 	rgb_color color = ui_color(B_PANEL_TEXT_COLOR);
 	view->SetFontAndColor(be_plain_font, B_FONT_ALL, &color);
-	view->SetExplicitMinSize(BSize(360, 90));
+	font_height height;
+	be_plain_font->GetHeight(&height);
+	float line = ceilf(height.ascent + height.descent + height.leading);
+	view->SetExplicitMinSize(BSize(be_plain_font->Size() * 30, line * lines));
 	return view;
 }
 
@@ -46,7 +52,7 @@ void OpenUrl(const char* url)
 CredentialsWindow::CredentialsWindow()
 	:
 	BWindow(BRect(0, 0, 440, 260), "R Telegram", B_TITLED_WINDOW,
-		B_AUTO_UPDATE_SIZE_LIMITS | B_NOT_ZOOMABLE | B_QUIT_ON_WINDOW_CLOSE)
+		B_AUTO_UPDATE_SIZE_LIMITS | B_NOT_ZOOMABLE)
 {
 	fApiId = new BTextControl("api_id", NULL, NULL);
 	fApiHash = new BTextControl("api_hash", NULL, NULL);
@@ -63,7 +69,7 @@ CredentialsWindow::CredentialsWindow()
 			"tools\", create an application, and copy its api_id and "
 			"api_hash here. They are kept in "
 			"~/config/settings/RTelegram/api and never leave this machine "
-			"except to sign you in."))
+			"except to sign you in.", 8))
 		.AddGrid()
 			.AddTextControl(fApiId, 0, 0)
 			.AddTextControl(fApiHash, 0, 1)
@@ -74,6 +80,7 @@ CredentialsWindow::CredentialsWindow()
 			.AddGlue()
 			.Add(save)
 		.End();
+	ResizeToPreferred();
 	CenterOnScreen();
 }
 
@@ -105,22 +112,24 @@ void CredentialsWindow::MessageReceived(BMessage* message)
 	}
 }
 
+// Only the close box gets here; Quit() after saving does not. Closing
+// before the credentials are in leaves nothing to run, so the app ends.
 bool CredentialsWindow::QuitRequested()
 {
+	be_app->PostMessage(B_QUIT_REQUESTED);
 	return true;
 }
 
 LoginWindow::LoginWindow()
 	:
 	BWindow(BRect(0, 0, 400, 220), "R Telegram", B_TITLED_WINDOW,
-		B_AUTO_UPDATE_SIZE_LIMITS | B_NOT_ZOOMABLE | B_QUIT_ON_WINDOW_CLOSE)
+		B_AUTO_UPDATE_SIZE_LIMITS | B_NOT_ZOOMABLE)
 {
 	fPrompt = new BStringView("prompt", "");
 	BFont font(be_bold_font);
 	font.SetSize(font.Size() * 1.3f);
 	fPrompt->SetFont(&font);
-	fHelp = HelpText("");
-	fHelp->SetExplicitMinSize(BSize(340, 50));
+	fHelp = HelpText("", 3);
 	fField = new BTextControl("field", NULL, "", NULL);
 	fNext = new BButton("Next", new BMessage(kMsgNext));
 	fNext->MakeDefault(true);
@@ -140,6 +149,7 @@ LoginWindow::LoginWindow()
 		.End();
 	TdService::Get().AddTarget(BMessenger(this));
 	ShowState();
+	ResizeToPreferred();
 	CenterOnScreen();
 }
 
@@ -233,7 +243,11 @@ void LoginWindow::MessageReceived(BMessage* message)
 	}
 }
 
+// Only the close box gets here. Quit() when the login completes does not
+// come through QuitRequested(), so signing in leaves the app running; it
+// was B_QUIT_ON_WINDOW_CLOSE that made it end there.
 bool LoginWindow::QuitRequested()
 {
+	be_app->PostMessage(B_QUIT_REQUESTED);
 	return true;
 }

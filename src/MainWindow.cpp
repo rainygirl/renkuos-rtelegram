@@ -15,6 +15,7 @@
 #include <TranslationUtils.h>
 
 #include <algorithm>
+#include <math.h>
 #include <time.h>
 
 namespace {
@@ -482,6 +483,10 @@ MainWindow::MainWindow()
 
 	TdService::Get().AddTarget(BMessenger(this));
 	RefreshChats();
+	// The layout would shrink the window to its preferred size, which for
+	// two empty lists is a postage stamp.
+	ResizeTo(roundf(900 * Scale()), roundf(620 * Scale()));
+	CenterOnScreen();
 }
 
 void MainWindow::RefreshChats()

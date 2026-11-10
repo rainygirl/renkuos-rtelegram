@@ -84,6 +84,11 @@ void TdService::Start(int32_t apiId, const std::string& apiHash)
 	fApiHash = apiHash;
 	td::ClientManager::execute(
 		td_api::make_object<td_api::setLogVerbosityLevel>(1));
+	// TDLib's own log, kept across runs: an app started from Deskbar has no
+	// terminal, and a fatal error is only ever written here.
+	td::ClientManager::execute(td_api::make_object<td_api::setLogStream>(
+		td_api::make_object<td_api::logStreamFile>(
+			settings::Directory() + "/tdlib.log", 2 << 20, false)));
 	fManager = std::make_unique<td::ClientManager>();
 	fClientId = fManager->create_client_id();
 	// Any request makes the client start; getOption is the cheapest.

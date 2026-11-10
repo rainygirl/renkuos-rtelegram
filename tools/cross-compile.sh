@@ -15,11 +15,13 @@ case "$ARCH" in
 arm64)
 	GEN="${GEN:-/root/renku-arm64-work/generated.arm64}"
 	CXX="$GEN/cross-tools-arm64/bin/aarch64-unknown-haiku-g++ --sysroot=$TD/$ARCH/sysroot"
+	STRIP="$GEN/cross-tools-arm64/bin/aarch64-unknown-haiku-strip"
 	EXTRA=""
 	;;
 x86)
 	X86="${X86:-/build/generated.x86only/cross-tools-x86}"
 	CXX="$X86/bin/i586-pc-haiku-g++"
+	STRIP="$X86/bin/i586-pc-haiku-strip"
 	EXTRA="-I$X86/i586-pc-haiku/headers/x86"
 	;;
 *) echo "usage: $0 arm64|x86" >&2; exit 1 ;;
@@ -39,6 +41,8 @@ $CXX -o RTelegram src/*.o \
 	-Wl,--start-group $TDLIBS -Wl,--end-group \
 	-lssl -lcrypto -lz -lbe -ltranslation -lnetwork -lstdc++ \
 	-Xlinker -soname=_APP_
+# Before the resources: they sit after the ELF data, and strip drops them.
+$STRIP RTelegram
 if [ -n "$GEN" ] && [ -x "$GEN/objects/linux/arm64/release/tools/rc/rc" ]; then
 	sh "$(dirname "$0")/attach-resources.sh" RTelegram RTelegram.rdef
 fi
