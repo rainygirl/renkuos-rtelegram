@@ -9,6 +9,7 @@
 #include <OS.h>
 
 #include <algorithm>
+#include <time.h>
 
 namespace {
 
@@ -49,6 +50,12 @@ std::string OneLine(std::string text)
 			c = ' ';
 	}
 	return text;
+}
+
+bool Muted(td_api::chatNotificationSettings* settings)
+{
+	return settings != NULL && !settings->use_default_mute_for_
+		&& settings->mute_for_ > 0;
 }
 
 std::string LanguageCode()
@@ -190,10 +197,8 @@ void TdService::Process(td_api::object_ptr<td_api::Object> object)
 		[this, &chatsChanged](td_api::updateChatLastMessage& update) {
 			BAutolock guard(fLock);
 			ChatInfo& chat = fChats[update.chat_id_];
-			if (update.last_message_) {
-				chat.preview = Preview(update.last_message_->content_.get());
-				chat.lastDate = update.last_message_->date_;
-			}
+			if (update.last_message_)
+				SetLastMessage(chat, update.last_message_.get());
 			for (auto& position : update.positions_)
 				SetPosition(chat, *position);
 			chatsChanged = true;
@@ -203,12 +208,64 @@ void TdService::Process(td_api::object_ptr<td_api::Object> object)
 			fChats[update.chat_id_].unread = update.unread_count_;
 			chatsChanged = true;
 		},
-		[this](td_api::updateUser& update) {
+		[this, &chatsChanged](td_api::updateChatReadOutbox& update) {
 			BAutolock guard(fLock);
-			std::string name = update.user_->first_name_;
-			if (!update.user_->last_name_.empty())
-				name += " " + update.user_->last_name_;
-			fUsers[update.user_->id_] = name;
+			fChats[update.chat_id_].lastReadOutbox
+				= update.last_read_outbox_message_id_;
+			chatsChanged = true;
+		},
+		[this, &chatsChanged](td_api::updateChatPhoto& update) {
+			BAutolock guard(fLock);
+			fChats[update.chat_id_].photoFile = update.photo_
+				? SmallPhoto(update.photo_->small_.get()) : 0;
+			chatsChanged = true;
+		},
+		[this, &chatsChanged](td_api::updateChatAccentColors& update) {
+			BAutolock guard(fLock);
+			fChats[update.chat_id_].accent = update.accent_color_id_;
+			chatsChanged = true;
+		},
+		[this, &chatsChanged](td_api::updateChatNotificationSettings& update) {
+			BAutolock guard(fLock);
+			fChats[update.chat_id_].muted
+				= Muted(update.notification_settings_.get());
+			chatsChanged = true;
+		},
+		[this, &chatsChanged](td_api::updateUser& update) {
+			BAutolock guard(fLock);
+			td_api::user& user = *update.user_;
+			UserInfo& info = fUsers[user.id_];
+			info.id = user.id_;
+			info.name = user.first_name_;
+			if (!user.last_name_.empty())
+				info.name += " " + user.last_name_;
+			info.accent = user.accent_color_id_;
+			info.photoFile = user.profile_photo_
+				? SmallPhoto(user.profile_photo_->small_.get()) : 0;
+			info.isBot = user.type_
+				&& user.type_->get_id() == td_api::userTypeBot::ID;
+			info.deleted = user.type_
+				&& user.type_->get_id() == td_api::userTypeDeleted::ID;
+			SetUserStatus(info, user.status_.get());
+			// Sender names in the list's previews come from here.
+			chatsChanged = true;
+		},
+		[this, &chatsChanged](td_api::updateUserStatus& update) {
+			BAutolock guard(fLock);
+			SetUserStatus(fUsers[update.user_id_], update.status_.get());
+			chatsChanged = true;
+		},
+		[this](td_api::updateBasicGroup& update) {
+			BAutolock guard(fLock);
+			fBasicGroupMembers[update.basic_group_->id_]
+				= update.basic_group_->member_count_;
+		},
+		[this](td_api::updateSupergroup& update) {
+			BAutolock guard(fLock);
+			if (update.supergroup_->member_count_ > 0) {
+				fSupergroupMembers[update.supergroup_->id_]
+					= update.supergroup_->member_count_;
+			}
 		},
 		[this, &messagesChanged](td_api::updateNewMessage& update) {
 			messagesChanged = update.message_->chat_id_;
@@ -297,7 +354,7 @@ void TdService::OnAuthorizationState(td_api::AuthorizationState& state)
 			parameters->system_language_code_ = LanguageCode();
 			parameters->device_model_ = "Haiku";
 			parameters->system_version_ = "RenkuOS";
-			parameters->application_version_ = "0.1.0";
+			parameters->application_version_ = "0.2.0";
 			Send(std::move(parameters));
 		},
 		[&next](td_api::authorizationStateWaitPhoneNumber&) {
@@ -340,21 +397,33 @@ void TdService::OnNewChat(td_api::chat& chat)
 	info.id = chat.id_;
 	info.title = chat.title_;
 	info.unread = chat.unread_count_;
-	if (chat.last_message_) {
-		info.preview = Preview(chat.last_message_->content_.get());
-		info.lastDate = chat.last_message_->date_;
-	}
+	info.accent = chat.accent_color_id_;
+	info.lastReadOutbox = chat.last_read_outbox_message_id_;
+	info.muted = Muted(chat.notification_settings_.get());
+	info.photoFile = chat.photo_ ? SmallPhoto(chat.photo_->small_.get()) : 0;
+	if (chat.last_message_)
+		SetLastMessage(info, chat.last_message_.get());
 	for (auto& position : chat.positions_)
 		SetPosition(info, *position);
 	if (chat.type_) {
 		switch (chat.type_->get_id()) {
+			case td_api::chatTypePrivate::ID:
+				info.userId = static_cast<td_api::chatTypePrivate&>(
+					*chat.type_).user_id_;
+				break;
 			case td_api::chatTypeBasicGroup::ID:
 				info.isGroup = true;
+				info.basicGroupId = static_cast<td_api::chatTypeBasicGroup&>(
+					*chat.type_).basic_group_id_;
 				break;
-			case td_api::chatTypeSupergroup::ID:
-				info.isGroup = !static_cast<td_api::chatTypeSupergroup&>(
-					*chat.type_).is_channel_;
+			case td_api::chatTypeSupergroup::ID: {
+				auto& type = static_cast<td_api::chatTypeSupergroup&>(
+					*chat.type_);
+				info.isChannel = type.is_channel_;
+				info.isGroup = !type.is_channel_;
+				info.supergroupId = type.supergroup_id_;
 				break;
+			}
 		}
 	}
 }
@@ -366,6 +435,56 @@ void TdService::SetPosition(ChatInfo& chat, td_api::chatPosition& position)
 		return;
 	chat.order = position.order_;
 	chat.pinned = position.is_pinned_;
+}
+
+void TdService::SetLastMessage(ChatInfo& chat, td_api::message* message)
+{
+	chat.preview = Preview(message->content_.get());
+	chat.lastDate = message->date_;
+	chat.lastMessageId = message->id_;
+	chat.lastOutgoing = message->is_outgoing_;
+	chat.lastSenderUser = 0;
+	if (message->sender_id_
+		&& message->sender_id_->get_id() == td_api::messageSenderUser::ID) {
+		chat.lastSenderUser = static_cast<td_api::messageSenderUser&>(
+			*message->sender_id_).user_id_;
+	}
+}
+
+void TdService::SetUserStatus(UserInfo& user, td_api::UserStatus* status)
+{
+	user.presence = UserPresence::kUnknown;
+	if (status == NULL)
+		return;
+	switch (status->get_id()) {
+		case td_api::userStatusOnline::ID:
+			user.presence = UserPresence::kOnline;
+			break;
+		case td_api::userStatusOffline::ID:
+			user.presence = UserPresence::kOffline;
+			user.wasOnline = static_cast<td_api::userStatusOffline*>(status)
+				->was_online_;
+			break;
+		case td_api::userStatusRecently::ID:
+			user.presence = UserPresence::kRecently;
+			break;
+		case td_api::userStatusLastWeek::ID:
+			user.presence = UserPresence::kLastWeek;
+			break;
+		case td_api::userStatusLastMonth::ID:
+			user.presence = UserPresence::kLastMonth;
+			break;
+	}
+}
+
+// The file id of a small photo, remembering its path if it is already here.
+int32_t TdService::SmallPhoto(td_api::file* file)
+{
+	if (file == NULL)
+		return 0;
+	if (file->local_ && file->local_->is_downloading_completed_)
+		fFiles[file->id_] = file->local_->path_;
+	return file->id_;
 }
 
 std::string TdService::Preview(td_api::MessageContent* content)
@@ -403,6 +522,14 @@ MessageInfo TdService::Convert(td_api::message& message)
 	MessageInfo info;
 	info.id = message.id_;
 	info.outgoing = message.is_outgoing_;
+	if (message.sending_state_) {
+		if (message.sending_state_->get_id()
+				== td_api::messageSendingStatePending::ID) {
+			info.sending = true;
+		} else {
+			info.failed = true;
+		}
+	}
 	info.date = message.date_;
 	if (message.sender_id_) {
 		if (message.sender_id_->get_id() == td_api::messageSenderUser::ID) {
@@ -531,8 +658,11 @@ std::vector<ChatInfo> TdService::Chats()
 	{
 		BAutolock guard(fLock);
 		for (auto& entry : fChats) {
-			if (entry.second.order != 0)
-				result.push_back(entry.second);
+			if (entry.second.order == 0)
+				continue;
+			result.push_back(entry.second);
+			if (result.back().title.empty())
+				result.back().title = "Deleted Account";
 		}
 	}
 	std::sort(result.begin(), result.end(),
@@ -558,7 +688,88 @@ std::string TdService::UserName(int64_t userId)
 {
 	BAutolock guard(fLock);
 	auto it = fUsers.find(userId);
-	return it == fUsers.end() ? std::string() : it->second;
+	if (it == fUsers.end())
+		return std::string();
+	if (it->second.deleted)
+		return "Deleted Account";
+	return it->second.name;
+}
+
+bool TdService::User(int64_t userId, UserInfo* out)
+{
+	BAutolock guard(fLock);
+	auto it = fUsers.find(userId);
+	if (it == fUsers.end())
+		return false;
+	*out = it->second;
+	return true;
+}
+
+namespace {
+
+std::string Count(int32_t n, const char* one, const char* many)
+{
+	return std::to_string(n) + " " + (n == 1 ? one : many);
+}
+
+}  // namespace
+
+std::string TdService::ChatStatus(int64_t chatId, bool* online)
+{
+	*online = false;
+	BAutolock guard(fLock);
+	auto chat = fChats.find(chatId);
+	if (chat == fChats.end())
+		return "";
+	const ChatInfo& info = chat->second;
+	if (info.userId != 0) {
+		auto it = fUsers.find(info.userId);
+		if (it == fUsers.end())
+			return "";
+		const UserInfo& user = it->second;
+		if (user.isBot)
+			return "bot";
+		switch (user.presence) {
+			case UserPresence::kOnline:
+				*online = true;
+				return "online";
+			case UserPresence::kRecently:
+				return "last seen recently";
+			case UserPresence::kLastWeek:
+				return "last seen within a week";
+			case UserPresence::kLastMonth:
+				return "last seen within a month";
+			case UserPresence::kOffline: {
+				time_t when = user.wasOnline;
+				time_t now = time(NULL);
+				struct tm local;
+				struct tm today;
+				localtime_r(&when, &local);
+				localtime_r(&now, &today);
+				char buffer[64];
+				if (local.tm_year == today.tm_year
+					&& local.tm_yday == today.tm_yday) {
+					strftime(buffer, sizeof(buffer), "last seen at %H:%M",
+						&local);
+				} else {
+					strftime(buffer, sizeof(buffer), "last seen %Y-%m-%d",
+						&local);
+				}
+				return buffer;
+			}
+			default:
+				return "last seen a long time ago";
+		}
+	}
+	int32_t members = 0;
+	if (info.basicGroupId != 0)
+		members = fBasicGroupMembers[info.basicGroupId];
+	else if (info.supergroupId != 0)
+		members = fSupergroupMembers[info.supergroupId];
+	if (members <= 0)
+		return info.isChannel ? "channel" : "group";
+	return info.isChannel ? Count(members, "subscriber", "subscribers")
+		: Count(members, "member", "members");
 }
 
 std::string TdService::SenderName(const MessageInfo& message)
@@ -579,6 +790,31 @@ void TdService::OpenChat(int64_t chatId)
 	}
 	Send(td_api::make_object<td_api::openChat>(chatId));
 	LoadOlder(chatId);
+	// The member count in a supergroup's update is often 0 until the full
+	// info has been asked for.
+	int64_t supergroup = 0;
+	{
+		BAutolock guard(fLock);
+		supergroup = fChats[chatId].supergroupId;
+	}
+	if (supergroup != 0) {
+		Send(td_api::make_object<td_api::getSupergroupFullInfo>(supergroup),
+			[this, supergroup, chatId](
+				td_api::object_ptr<td_api::Object> object) {
+				if (!object
+					|| object->get_id() != td_api::supergroupFullInfo::ID) {
+					return;
+				}
+				{
+					BAutolock guard(fLock);
+					fSupergroupMembers[supergroup]
+						= static_cast<td_api::supergroupFullInfo&>(*object)
+							.member_count_;
+				}
+				BMessage message(kMsgChatsChanged);
+				Notify(message);
+			});
+	}
 }
 
 void TdService::CloseChat(int64_t chatId)

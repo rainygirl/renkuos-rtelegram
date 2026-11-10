@@ -52,6 +52,37 @@ struct ChatInfo {
 	int64_t order = 0;			// position in the main list; 0 = not in it
 	bool pinned = false;
 	bool isGroup = false;		// basic groups and supergroups (not channels)
+	bool isChannel = false;
+	bool muted = false;
+	int32_t photoFile = 0;		// the small chat photo, 0 for none
+	int32_t accent = -1;		// Telegram's accent colour id
+	int64_t userId = 0;			// the other user, in a private chat
+	int64_t basicGroupId = 0;
+	int64_t supergroupId = 0;
+	int64_t lastMessageId = 0;
+	int64_t lastSenderUser = 0;
+	bool lastOutgoing = false;
+	int64_t lastReadOutbox = 0;	// own messages up to this one have been read
+};
+
+enum class UserPresence {
+	kUnknown,
+	kOnline,
+	kOffline,		// wasOnline holds when
+	kRecently,
+	kLastWeek,
+	kLastMonth,
+};
+
+struct UserInfo {
+	int64_t id = 0;
+	std::string name;
+	int32_t photoFile = 0;
+	int32_t accent = -1;
+	UserPresence presence = UserPresence::kUnknown;
+	int32_t wasOnline = 0;
+	bool isBot = false;
+	bool deleted = false;
 };
 
 struct MessageInfo {
@@ -59,6 +90,8 @@ struct MessageInfo {
 	int64_t senderUser = 0;		// 0 when the sender is a chat
 	int64_t senderChat = 0;
 	bool outgoing = false;
+	bool sending = false;		// not yet acknowledged by the server
+	bool failed = false;
 	int32_t date = 0;
 	std::string text;			// text or caption
 	std::string placeholder;	// "[Sticker]" and the like, for what is not drawn
@@ -88,6 +121,9 @@ public:
 	std::vector<ChatInfo> Chats();
 	bool Chat(int64_t id, ChatInfo* out);
 	std::string UserName(int64_t userId);
+	bool User(int64_t userId, UserInfo* out);
+	// "online", "last seen ...", "12 members": the line under a chat's name.
+	std::string ChatStatus(int64_t chatId, bool* online);
 	std::string SenderName(const MessageInfo& message);
 
 	// Opening a chat loads its recent history; messages arrive with
@@ -116,6 +152,9 @@ private:
 	void OnNewChat(td_api::chat& chat);
 	void OnMessage(td_api::message& message, bool fresh);
 	void SetPosition(ChatInfo& chat, td_api::chatPosition& position);
+	void SetLastMessage(ChatInfo& chat, td_api::message* message);
+	void SetUserStatus(UserInfo& user, td_api::UserStatus* status);
+	int32_t SmallPhoto(td_api::file* file);
 	MessageInfo Convert(td_api::message& message);
 	std::string Preview(td_api::MessageContent* content);
 	void AddMessages(int64_t chatId, td_api::messages& messages);
@@ -133,7 +172,9 @@ private:
 	AuthState fState = AuthState::kStarting;
 	std::string fPasswordHint;
 	std::map<int64_t, ChatInfo> fChats;
-	std::map<int64_t, std::string> fUsers;
+	std::map<int64_t, UserInfo> fUsers;
+	std::map<int64_t, int32_t> fBasicGroupMembers;
+	std::map<int64_t, int32_t> fSupergroupMembers;
 	std::map<int64_t, std::vector<MessageInfo>> fMessages;
 	std::map<int64_t, bool> fLoadingHistory;
 	std::map<int32_t, std::string> fFiles;		// completed downloads
