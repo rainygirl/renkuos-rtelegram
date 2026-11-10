@@ -445,6 +445,9 @@ MainWindow::MainWindow()
 		B_QUIT_ON_WINDOW_CLOSE)
 {
 	fChats = new BListView("chats");
+	// The time is right-aligned: a resize moves it, so redraw whole rows,
+	// not just the strip the resize exposed.
+	fChats->SetFlags(fChats->Flags() | B_FULL_UPDATE_ON_RESIZE);
 	fChats->SetSelectionMessage(new BMessage(kMsgChatSelected));
 	BScrollView* chatScroll = new BScrollView("chat scroll", fChats, 0,
 		false, true, B_NO_BORDER);
