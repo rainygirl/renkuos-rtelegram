@@ -6,15 +6,36 @@ Haiku와 RenkuOS용 네이티브 Telegram 클라이언트입니다. 프로토콜
 공식 클라이언트 라이브러리 [TDLib](https://github.com/tdlib/td)이 맡고, 모든
 창은 Haiku API로 그립니다. Qt는 쓰지 않습니다.
 
-## pkgman으로 설치
+## 설치
 
-| Haiku | 명령 |
-| --- | --- |
-| 32비트 x86 (x86_gcc2) | `pkgman add-repo https://pkgman.rainygirl.com/x86_gcc2`<br>`pkgman install rtelegram_x86` |
-| x86_64 | `pkgman add-repo https://pkgman.rainygirl.com/x86_64`<br>`pkgman install rtelegram` |
-| arm64 | `pkgman add-repo http://pkgman.rainygirl.com/arm64`<br>`pkgman install rtelegram` |
+R Telegram은 **arm64**와 **32비트 x86 (x86_gcc2)**용으로 배포됩니다. x86_64용은
+아직 없습니다.
 
-설치한 뒤 Deskbar -> 응용 프로그램에서 **R Telegram**을 실행합니다.
+1. 아키텍처를 확인합니다. 설치된 `haiku` 패키지 파일 이름 끝이 답입니다.
+
+       ls /system/packages/haiku-*.hpkg
+       # .../haiku-r1~beta5_hrev58000-1-arm64.hpkg  ->  arm64
+
+2. 해당 저장소를 추가하고 설치합니다.
+
+   | 아키텍처 | 명령 |
+   | --- | --- |
+   | arm64 | `pkgman add-repo https://pkgman.rainygirl.com/arm64`<br>`pkgman refresh`<br>`pkgman install rtelegram` |
+   | 32비트 x86 (x86_gcc2) | `pkgman add-repo https://pkgman.rainygirl.com/x86_gcc2`<br>`pkgman refresh`<br>`pkgman install rtelegram_x86` |
+
+   `pkgman add-repo`가 `Operation not supported`로 실패하면 그 이미지의
+   네트워크 킷에 TLS가 없는 것입니다. 주소의 `https://`를 `http://`로 바꿔
+   쓰세요.
+
+3. Deskbar -> 응용 프로그램에서 **R Telegram**을 실행합니다.
+
+4. 처음 실행하면 API 키(아래 절)를 묻고, 이어서 전화번호, 로그인 코드, 설정해
+   두었다면 2단계 인증 비밀번호를 묻습니다.
+
+나중에 업데이트하려면 `pkgman update rtelegram`(32비트 x86은 `rtelegram_x86`)을
+실행합니다. 지우려면 `pkgman uninstall rtelegram`을 실행합니다. 로그인 세션과
+API 키는 `~/config/settings/RTelegram`에 남으니, 이 컴퓨터에서 완전히
+로그아웃하려면 이 폴더도 지우세요.
 
 ## API 키 받기
 

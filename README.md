@@ -6,15 +6,37 @@ A native Telegram client for Haiku and RenkuOS. It uses
 [TDLib](https://github.com/tdlib/td), Telegram's own client library, for the
 protocol, and the Haiku API for every window: no Qt.
 
-## Install with pkgman
+## Install
 
-| Haiku | Commands |
-| --- | --- |
-| 32-bit x86 (x86_gcc2) | `pkgman add-repo https://pkgman.rainygirl.com/x86_gcc2`<br>`pkgman install rtelegram_x86` |
-| x86_64 | `pkgman add-repo https://pkgman.rainygirl.com/x86_64`<br>`pkgman install rtelegram` |
-| arm64 | `pkgman add-repo http://pkgman.rainygirl.com/arm64`<br>`pkgman install rtelegram` |
+R Telegram is published for **arm64** and **32-bit x86 (x86_gcc2)**. There is
+no x86_64 build yet.
 
-Then start **R Telegram** from Deskbar -> Applications.
+1. Find your architecture. The name at the end of the installed `haiku`
+   package is the answer:
+
+       ls /system/packages/haiku-*.hpkg
+       # .../haiku-r1~beta5_hrev58000-1-arm64.hpkg  ->  arm64
+
+2. Add the repository for it and install:
+
+   | Architecture | Commands |
+   | --- | --- |
+   | arm64 | `pkgman add-repo https://pkgman.rainygirl.com/arm64`<br>`pkgman refresh`<br>`pkgman install rtelegram` |
+   | 32-bit x86 (x86_gcc2) | `pkgman add-repo https://pkgman.rainygirl.com/x86_gcc2`<br>`pkgman refresh`<br>`pkgman install rtelegram_x86` |
+
+   If `pkgman add-repo` fails with `Operation not supported`, that image's
+   network kit has no TLS; use `http://` instead of `https://`.
+
+3. Start **R Telegram** from Deskbar -> Applications.
+
+4. The first start asks for your API credentials (next section), then for
+   your phone number, the login code and, if you set one, your two-step
+   verification password.
+
+To update later, run `pkgman update rtelegram` (`rtelegram_x86` on 32-bit
+x86). To remove it, run `pkgman uninstall rtelegram`. Your session and
+credentials stay in `~/config/settings/RTelegram`; delete that folder too to
+sign out of this machine completely.
 
 ## Your API credentials
 
