@@ -6,6 +6,11 @@ Haiku와 RenkuOS용 네이티브 Telegram 클라이언트입니다. 프로토콜
 공식 클라이언트 라이브러리 [TDLib](https://github.com/tdlib/td)이 맡고, 모든
 창은 Haiku API로 그립니다. Qt는 쓰지 않습니다.
 
+
+![RenkuOS에서 실행한 R Telegram](docs/screenshot.png)
+
+*대화 상대 이름, 대화 내용, 프로필 사진은 흐리게 처리했습니다.*
+
 ## 설치
 
 R Telegram은 **arm64**와 **32비트 x86 (x86_gcc2)**용으로 배포됩니다. x86_64용은
