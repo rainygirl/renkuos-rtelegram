@@ -97,6 +97,11 @@ app is compiled against it:
 POSIX system with `poll()` and pthreads, but defines `__HAIKU__` rather than
 `__unix__`, which TDLib and its bundled SQLite test for.
 
+## AI disclosure
+
+Parts of R Telegram were developed with the assistance of AI coding tools
+(Anthropic's Claude). All code has been reviewed and tested by the author.
+
 ## License
 
 MIT. TDLib is under the Boost Software License 1.0.

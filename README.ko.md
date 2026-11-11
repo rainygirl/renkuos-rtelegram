@@ -88,6 +88,11 @@ R Telegram은 이미 있는 계정으로 로그인만 합니다.
 TDLib을 Haiku 크로스 툴체인으로 정적 라이브러리로 빌드한 뒤, 앱을 그 위에서
 컴파일합니다. 자세한 명령은 [README.md](README.md#building)에 있습니다.
 
+## AI 사용 고지
+
+R Telegram의 일부는 AI 코딩 도구(Anthropic Claude)의 도움을 받아 개발했습니다.
+모든 코드는 작성자가 검토하고 테스트했습니다.
+
 ## 라이선스
 
 MIT. TDLib은 Boost Software License 1.0입니다.
