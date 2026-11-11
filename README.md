@@ -6,7 +6,6 @@ A native Telegram client for Haiku and RenkuOS. It uses
 [TDLib](https://github.com/tdlib/td), Telegram's own client library, for the
 protocol, and the Haiku API for every window: no Qt.
 
-
 ![R Telegram on RenkuOS](docs/screenshot.png)
 
 *Names, messages and profile pictures are blurred.*
