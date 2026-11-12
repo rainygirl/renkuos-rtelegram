@@ -1,8 +1,0 @@
-R Telegram includes TDLib (https://github.com/tdlib/td), linked statically:
-
-  Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov
-  (arseny30@gmail.com) 2014-2026
-  Distributed under the Boost Software License, Version 1.0.
-  https://www.boost.org/LICENSE_1_0.txt
-
-TDLib in turn bundles SQLite (public domain) with SQLCipher (BSD-style).
